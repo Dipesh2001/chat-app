@@ -2,6 +2,6 @@
 import { io } from "socket.io-client";
 
 // Connect to the Socket.IO server
-const socket = io("https://turbo-bassoon-4rwxxvj4vx4hj496-4000.app.github.dev");
+const socket = io("http://localhost:4000");
 
 export default socket;
