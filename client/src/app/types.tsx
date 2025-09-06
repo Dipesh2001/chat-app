@@ -11,6 +11,26 @@ export interface User extends common {
   profileImage: string;
 }
 
+export type InviteStatus = "pending" | "accepted" | "rejected";
+
+export interface RoomInvite {
+  to: string; // user invited
+  invitedBy: string; // who invited
+  status: InviteStatus;
+  invitedAt: Date;
+  respondedAt?: Date;
+}
+
+export interface Room extends common {
+  name: string;
+  isPrivate: boolean;
+  owner: String;
+  members: String[]; // users in room
+  invites: RoomInvite[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface QueryResponse<T> {
   success: boolean;
   data: T;

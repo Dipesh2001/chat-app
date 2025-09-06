@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { successResponse, errorResponse } from "../helper";
+import { successResponse, errorResponse, toNumber } from "../helper";
 import { authRequest } from "../middleware/auth";
 import { User } from "../models/user-model";
 import { removeUploadedFile } from "../middleware/handleUploadError";
@@ -23,23 +23,30 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const fetchUsers = async (req: Request, res: Response) => {
   try {
-    const q = req.query.q as string | undefined;
     const currentUserId = (req as any).user.id; // from auth middleware
-    if (!q) {
-      return res.status(400).json({ message: "Query param 'q' is required" });
-    }
+    const page = toNumber(req.query.page, 1);
+    const size = toNumber(req.query.size, 8);
+    const search = req.query.search;
+    // if (!q) {
+    //   return res.status(400).json({ message: "Query param 'q' is required" });
+    // }
 
     // Find users matching query, exclude current user
     const users = await User.find(
       {
         _id: { $ne: currentUserId }, // exclude self
-        name: { $regex: q, $options: "i" }, // case-insensitive search
+        name: { $regex: search || "", $options: "i" }, // case-insensitive search
       },
       "name id profileImage"
-    ).select("-password"); // don’t send password
+    )
+      .select("-password")
+      .skip((page - 1) * size)
+      .limit(size)
+      .sort({ updatedAt: 1 });
 
-    successResponse(res, "User registered successfully", { users });
+    successResponse(res, "Users fetched successfully", { users });
   } catch (error) {
+    console.log({ error });
     errorResponse(res, "Error fetching user");
   }
 };

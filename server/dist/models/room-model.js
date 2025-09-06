@@ -32,42 +32,29 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.User = void 0;
+// src/models/room.ts
 const mongoose_1 = __importStar(require("mongoose"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-// User Schema
-const UserSchema = new mongoose_1.Schema({
+const InviteSchema = new mongoose_1.Schema({
+    to: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    invitedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    status: {
+        type: String,
+        enum: ["pending", "accepted", "rejected"],
+        default: "pending",
+    },
+    invitedAt: { type: Date, default: Date.now },
+    respondedAt: { type: Date },
+}, { _id: false });
+const RoomSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    profileImage: { type: String },
-    lastSeen: { type: Date },
-}, { timestamps: true, versionKey: false });
-UserSchema.method("toJSON", function () {
-    const user = this.toObject();
-    const baseUrl = process.env.BASE_URL || "http://localhost:4000";
-    if (user.profileImage && user.profileImage.startsWith("uploads")) {
-        // Convert local image path to full URL
-        user.profileImage = `${baseUrl}/${user.profileImage
-            .replace(/\\/g, "/")
-            .replace(/^.*uploads/, "uploads")}`;
-    }
-    return user;
-});
-// 🔐 Password Hashing
-UserSchema.pre("save", async function (next) {
-    if (!this.isModified("password"))
-        return next();
-    const salt = await bcryptjs_1.default.genSalt(10);
-    this.password = await bcryptjs_1.default.hash(this.password, salt);
-    next();
-});
-// 🔍 Compare Password
-UserSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcryptjs_1.default.compare(candidatePassword, this.password);
-};
-exports.User = mongoose_1.default.model("User", UserSchema);
+    isPrivate: { type: Boolean, default: false },
+    owner: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
+    members: [{ type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true }],
+    invites: [InviteSchema],
+}, { timestamps: true });
+// Ensure index for fast owner or member queries
+RoomSchema.index({ owner: 1 });
+RoomSchema.index({ members: 1 });
+const Room = mongoose_1.default.model("Room", RoomSchema);
+exports.default = Room;

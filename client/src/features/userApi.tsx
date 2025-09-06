@@ -5,6 +5,7 @@ import { errorToast, successToast } from "../helper";
 type responseType = { user: User; authToken: string };
 
 interface userResponse extends QueryResponse<responseType> {}
+interface usersResponse extends QueryResponse<{ users: User[] }> {}
 
 export const userApi = createApi({
   reducerPath: "api",
@@ -21,6 +22,16 @@ export const userApi = createApi({
         body: body,
       }),
       transformResponse: (res: userResponse) => res?.data,
+    }),
+    fetchUsers: builder.query<
+      User[],
+      { page: number; size: number; search: string }
+    >({
+      query: ({ page, size, search }) => ({
+        url: `/fetch?page=${page}&size=${size}&search=${search}`,
+        method: "get",
+      }),
+      transformResponse: (res: { users: User[] }) => res?.data,
     }),
     loginUser: builder.mutation<responseType, Partial<User>>({
       query: (body) => ({
@@ -57,4 +68,5 @@ export const {
   useLoginUserMutation,
   useValidateUserQuery,
   useLogoutUserMutation,
+  useLazyFetchUsersQuery,
 } = userApi;

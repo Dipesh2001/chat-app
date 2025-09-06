@@ -7,7 +7,7 @@ export interface IUser extends Document {
   email: string;
   password: string;
   profileImage?: string;
-  chats: mongoose.Types.ObjectId[];
+  lastSeen?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -18,7 +18,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     profileImage: { type: String },
-    chats: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
+    lastSeen: { type: Date },
   },
   { timestamps: true, versionKey: false }
 );

@@ -27,19 +27,26 @@ const createUser = async (req, res) => {
 exports.createUser = createUser;
 const fetchUsers = async (req, res) => {
     try {
-        const q = req.query.q;
         const currentUserId = req.user.id; // from auth middleware
-        if (!q) {
-            return res.status(400).json({ message: "Query param 'q' is required" });
-        }
+        const page = (0, helper_1.toNumber)(req.query.page, 1);
+        const size = (0, helper_1.toNumber)(req.query.size, 8);
+        const search = req.query.search;
+        // if (!q) {
+        //   return res.status(400).json({ message: "Query param 'q' is required" });
+        // }
         // Find users matching query, exclude current user
         const users = await user_model_1.User.find({
             _id: { $ne: currentUserId }, // exclude self
-            name: { $regex: q, $options: "i" }, // case-insensitive search
-        }, "name id profileImage").select("-password"); // don’t send password
-        (0, helper_1.successResponse)(res, "User registered successfully", { users });
+            name: { $regex: search || "", $options: "i" }, // case-insensitive search
+        }, "name id profileImage")
+            .select("-password")
+            .skip((page - 1) * size)
+            .limit(size)
+            .sort({ updatedAt: 1 });
+        (0, helper_1.successResponse)(res, "Users fetched successfully", { users });
     }
     catch (error) {
+        console.log({ error });
         (0, helper_1.errorResponse)(res, "Error fetching user");
     }
 };

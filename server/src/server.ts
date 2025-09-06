@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import http from "http";
 import { Server, Socket } from "socket.io";
 import userRoutes from "./routes/user-routes";
+import roomRoutes from "./routes/room-routes";
 import { errorHandler } from "./middleware/error-handler";
 import cors from "cors";
 import { connectDB } from "./config/db";
@@ -14,6 +15,7 @@ app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
 app.use("/api/user", userRoutes);
+app.use("/api/room", roomRoutes);
 app.use("/uploads", express.static("uploads"));
 
 app.get("/", (req: Request, res: Response) => {
