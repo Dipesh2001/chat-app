@@ -2,8 +2,6 @@
 import express from "express";
 import {
   createRoom,
-  inviteToRoom,
-  respondToInvite,
   getMyRooms,
   getRoom,
 } from "../controllers/room-controller";
@@ -13,12 +11,6 @@ const router = express.Router();
 
 // Create room
 router.post("/", auth("user"), createRoom);
-
-// Invite someone
-router.post("/:roomId/invite", auth("user"), inviteToRoom);
-
-// Respond to invite (accept/reject)
-router.post("/:roomId/respond", auth("user"), respondToInvite);
 
 // Get current user's rooms
 router.get("/", auth("user"), getMyRooms);

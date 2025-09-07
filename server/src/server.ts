@@ -8,6 +8,7 @@ import { errorHandler } from "./middleware/error-handler";
 import cors from "cors";
 import { connectDB } from "./config/db";
 import cookieParser from "cookie-parser";
+import { User } from "./models/user-model";
 const PORT = process.env.PORT || 5000;
 const app = express();
 const server = http.createServer(app);
@@ -25,13 +26,30 @@ app.get("/", (req: Request, res: Response) => {
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "http://localhost:5173",
+    credentials: true, // 🔑 allow cookies
   },
 });
 
+function isJsonString(str: string) {
+  try {
+    JSON.parse(str);
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+const onlineUsers = new Map<string, string>();
 // Handling client connections
-io.on("connection", (socket: Socket) => {
-  console.log("a user connected:", socket.id);
+io.on("connection", async (socket: Socket) => {
+  const userIdValue = socket.handshake.query.userId || "";
+  const userId = userIdValue || userIdValue[0];
+  if (userId) {
+    onlineUsers.set(userId, socket.id);
+    await User.findByIdAndUpdate(userId, { isOnline: true }).exec();
+    socket.broadcast.emit("user:online", { userId });
+    socket.emit("users:online-list", { users: Array.from(onlineUsers.keys()) });
+  }
 
   // Chat message event
   socket.on("chat-message", (msg: string) => {
@@ -39,8 +57,20 @@ io.on("connection", (socket: Socket) => {
   });
 
   // Disconnect event
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     console.log("user disconnected:", socket.id);
+    if (userId) {
+      onlineUsers.delete(userId);
+      await User.findByIdAndUpdate(userId, {
+        isOnline: false,
+        lastSeen: new Date(),
+      }).exec();
+
+      socket.broadcast.emit("user:offline", {
+        userId,
+        lastSeen: new Date(),
+      });
+    }
   });
 });
 

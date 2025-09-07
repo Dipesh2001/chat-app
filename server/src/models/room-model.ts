@@ -1,48 +1,27 @@
 // src/models/room.ts
 import mongoose, { Document, Schema } from "mongoose";
-
-export type InviteStatus = "pending" | "accepted" | "rejected";
-
-export interface IRoomInvite {
-  to: mongoose.Types.ObjectId; // user invited
-  invitedBy: mongoose.Types.ObjectId; // who invited
-  status: InviteStatus;
-  invitedAt: Date;
-  respondedAt?: Date;
-}
-
+type roomType = "direct" | "group" | "channel";
 export interface IRoom extends Document {
   name: string;
   isPrivate: boolean;
   owner: mongoose.Types.ObjectId;
   members: mongoose.Types.ObjectId[]; // users in room
-  invites: IRoomInvite[];
+  type: roomType;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const InviteSchema = new Schema<IRoomInvite>(
-  {
-    to: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    invitedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    status: {
-      type: String,
-      enum: ["pending", "accepted", "rejected"],
-      default: "pending",
-    },
-    invitedAt: { type: Date, default: Date.now },
-    respondedAt: { type: Date },
-  },
-  { _id: false }
-);
-
 const RoomSchema = new Schema<IRoom>(
   {
-    name: { type: String, required: true },
+    name: { type: String, default: null },
     isPrivate: { type: Boolean, default: false },
+    type: {
+      type: String,
+      enum: ["direct", "group", "channel"], // ✅ enum for Mongoose
+      default: "direct",
+    },
     owner: { type: Schema.Types.ObjectId, ref: "User", required: true },
     members: [{ type: Schema.Types.ObjectId, ref: "User", required: true }],
-    invites: [InviteSchema],
   },
   { timestamps: true }
 );

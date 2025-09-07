@@ -35,23 +35,16 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 // src/models/room.ts
 const mongoose_1 = __importStar(require("mongoose"));
-const InviteSchema = new mongoose_1.Schema({
-    to: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    invitedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    status: {
-        type: String,
-        enum: ["pending", "accepted", "rejected"],
-        default: "pending",
-    },
-    invitedAt: { type: Date, default: Date.now },
-    respondedAt: { type: Date },
-}, { _id: false });
 const RoomSchema = new mongoose_1.Schema({
-    name: { type: String, required: true },
+    name: { type: String, default: null },
     isPrivate: { type: Boolean, default: false },
+    type: {
+        type: String,
+        enum: ["direct", "group", "channel"], // ✅ enum for Mongoose
+        default: "direct",
+    },
     owner: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     members: [{ type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true }],
-    invites: [InviteSchema],
 }, { timestamps: true });
 // Ensure index for fast owner or member queries
 RoomSchema.index({ owner: 1 });

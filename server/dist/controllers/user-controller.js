@@ -43,7 +43,19 @@ const fetchUsers = async (req, res) => {
             .skip((page - 1) * size)
             .limit(size)
             .sort({ updatedAt: 1 });
-        (0, helper_1.successResponse)(res, "Users fetched successfully", { users });
+        const total = await user_model_1.User.countDocuments({
+            _id: { $ne: currentUserId }, // exclude self
+            name: { $regex: search || "", $options: "i" }, // case-insensitive search
+        });
+        (0, helper_1.successResponse)(res, "Users fetched successfully", {
+            users,
+            pagination: {
+                page,
+                size,
+                totalPages: Math.ceil(total / size),
+                totalItems: total,
+            },
+        });
     }
     catch (error) {
         console.log({ error });

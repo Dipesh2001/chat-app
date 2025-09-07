@@ -46,6 +46,7 @@ const UserSchema = new mongoose_1.Schema({
     password: { type: String, required: true },
     profileImage: { type: String },
     lastSeen: { type: Date },
+    isOnline: { type: Boolean },
 }, { timestamps: true, versionKey: false });
 UserSchema.method("toJSON", function () {
     const user = this.toObject();

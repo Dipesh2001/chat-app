@@ -10,10 +10,6 @@ const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // Create room
 router.post("/", (0, auth_1.auth)("user"), room_controller_1.createRoom);
-// Invite someone
-router.post("/:roomId/invite", (0, auth_1.auth)("user"), room_controller_1.inviteToRoom);
-// Respond to invite (accept/reject)
-router.post("/:roomId/respond", (0, auth_1.auth)("user"), room_controller_1.respondToInvite);
 // Get current user's rooms
 router.get("/", (0, auth_1.auth)("user"), room_controller_1.getMyRooms);
 // Get single room details

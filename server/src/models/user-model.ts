@@ -7,7 +7,8 @@ export interface IUser extends Document {
   email: string;
   password: string;
   profileImage?: string;
-  lastSeen?: Date;
+  isOnline?: boolean;
+  lastSeen?: Date | null;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -19,6 +20,7 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     profileImage: { type: String },
     lastSeen: { type: Date },
+    isOnline: { type: Boolean },
   },
   { timestamps: true, versionKey: false }
 );
