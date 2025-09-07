@@ -13,20 +13,20 @@ export interface User extends common {
 
 export type InviteStatus = "pending" | "accepted" | "rejected";
 
-export interface RoomInvite {
-  to: string; // user invited
-  invitedBy: string; // who invited
-  status: InviteStatus;
-  invitedAt: Date;
-  respondedAt?: Date;
+export interface pagination {
+  page: number;
+  size: number;
+  totalPages?: number;
+  totalItems?: number;
+  search?: string;
 }
 
 export interface Room extends common {
   name: string;
   isPrivate: boolean;
+  type: "direct" | "group" | "channel";
   owner: String;
-  members: String[]; // users in room
-  invites: RoomInvite[];
+  members: Partial<User[]>; // users in room
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,13 +35,6 @@ export interface QueryResponse<T> {
   success: boolean;
   data: T;
   message: string;
-}
-
-export interface pagination {
-  page: number;
-  size: number;
-  totalPages: number;
-  totalItems: number;
 }
 
 export interface Album extends common {

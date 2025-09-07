@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Search,
   Plus,
@@ -14,19 +14,22 @@ import {
 } from "lucide-react";
 import CreateRoomModal from "./CreateRoomModal";
 import UserSearchModal from "./UserSearchModal";
-import type { User } from "../app/types";
+import type { User, Room } from "../app/types";
+import { useLazyFetchRoomsQuery } from "../features/roomApi";
+import type { RootState } from "../app/store";
+import { useSelector } from "react-redux";
 
-interface Room {
-  id: string;
-  name: string;
-  type: "direct" | "group" | "channel";
-  avatar?: string;
-  lastMessage?: string;
-  lastSeen?: string;
-  unreadCount?: number;
-  isOnline?: boolean;
-  members?: string[];
-}
+// interface Room {
+//   id: string;
+//   name: string;
+//   type: "direct" | "group" | "channel";
+//   avatar?: string;
+//   lastMessage?: string;
+//   lastSeen?: string;
+//   unreadCount?: number;
+//   isOnline?: boolean;
+//   members?: string[];
+// }
 
 interface EnhancedSidebarProps {
   currentUser: User | undefined;
@@ -45,43 +48,80 @@ const EnhancedSidebar = ({
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [fetchRooms, { isFetching }] = useLazyFetchRoomsQuery();
+  const status = useSelector((state: RootState) => state.userStatus);
+  console.log({ status });
 
   // Mock data - replace with real data
-  const rooms: Room[] = [
-    {
-      id: "1",
-      name: "Alice Johnson",
-      type: "direct",
-      avatar: "https://placehold.co/200x/ffa8e4/ffffff.svg?text=AJ&font=Lato",
-      lastMessage: "Hey there! How are you?",
-      lastSeen: "2 min ago",
-      unreadCount: 3,
-      isOnline: true,
-    },
-    {
-      id: "2",
-      name: "Development Team",
-      type: "group",
-      avatar: "https://placehold.co/200x/b7a8ff/ffffff.svg?text=DT&font=Lato",
-      lastMessage: "The new feature is ready",
-      lastSeen: "10 min ago",
-      unreadCount: 1,
-      members: ["Alice", "Bob", "Charlie"],
-    },
-    {
-      id: "3",
-      name: "general",
-      type: "channel",
-      avatar: "https://placehold.co/200x/87ceeb/ffffff.svg?text=G&font=Lato",
-      lastMessage: "Welcome everyone!",
-      lastSeen: "1 hour ago",
-      unreadCount: 0,
-    },
-  ];
+  // const rooms: Room[] = [
+  //   {
+  //     id: "1",
+  //     name: "Alice Johnson",
+  //     type: "direct",
+  //     avatar: "https://placehold.co/200x/ffa8e4/ffffff.svg?text=AJ&font=Lato",
+  //     lastMessage: "Hey there! How are you?",
+  //     lastSeen: "2 min ago",
+  //     unreadCount: 3,
+  //     isOnline: true,
+  //   },
+  //   {
+  //     id: "2",
+  //     name: "Development Team",
+  //     type: "group",
+  //     avatar: "https://placehold.co/200x/b7a8ff/ffffff.svg?text=DT&font=Lato",
+  //     lastMessage: "The new feature is ready",
+  //     lastSeen: "10 min ago",
+  //     unreadCount: 1,
+  //     members: ["Alice", "Bob", "Charlie"],
+  //   },
+  //   {
+  //     id: "3",
+  //     name: "general",
+  //     type: "channel",
+  //     avatar: "https://placehold.co/200x/87ceeb/ffffff.svg?text=G&font=Lato",
+  //     lastMessage: "Welcome everyone!",
+  //     lastSeen: "1 hour ago",
+  //     unreadCount: 0,
+  //   },
+  // ];
 
-  const filteredRooms = rooms.filter((room) =>
-    room.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // const filteredRooms = rooms.filter((room) =>
+  //   room.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // );
+
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+
+  // Fetch users when page/search changes
+  useEffect(() => {
+    fetchRooms({ page, size: 6, search: searchQuery })
+      .unwrap()
+      .then((res) => {
+        setRooms((prev: Room[]) => {
+          let updatedList = [...prev, ...res.rooms];
+          setHasMore(
+            updatedList?.length === res.pagination?.totalItems ? false : true
+          );
+          return updatedList;
+        });
+      });
+  }, [fetchRooms, page, searchQuery]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  const handleScroll = () => {
+    const el = listRef.current;
+    if (!el || isFetching || !hasMore) return;
+
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
+      setPage((p) => p + 1);
+    }
+  };
 
   const getRoomIcon = (type: string) => {
     switch (type) {
@@ -165,8 +205,7 @@ const EnhancedSidebar = ({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="p-4 border-b border-border">
+        {/* <div className="p-4 border-b border-border">
           <div className="flex gap-2">
             <button
               onClick={() => setShowCreateModal(true)}
@@ -182,49 +221,60 @@ const EnhancedSidebar = ({
               <Users className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* Rooms List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredRooms.map((room) => (
-            <div
-              key={room.id}
-              onClick={() => onRoomSelect(room)}
-              className={`p-3 border-b border-border hover:bg-accent cursor-pointer transition-colors ${
-                selectedRoomId === room.id ? "bg-accent" : ""
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <img
-                    src={room.avatar}
-                    alt={room.name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  {room.isOnline && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-status-online border-2 border-background rounded-full"></div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 mb-1">
-                    {getRoomIcon(room.type)}
-                    <p className="font-medium text-sm truncate">{room.name}</p>
-                    {room.unreadCount && room.unreadCount > 0 && (
+          {rooms?.map((room: Room) => {
+            let memberData = room.members.filter(
+              (el: any) => el?._id != currentUser?._id
+            );
+            let roomName =
+              room.type == "direct" ? memberData?.[0]?.name : "Unknown";
+            let roomAvatar =
+              room.type == "direct" ? memberData?.[0]?.profileImage : "Unknown";
+            return (
+              <div
+                key={room._id}
+                onClick={() => onRoomSelect(room)}
+                className={`p-3 border-b border-border hover:bg-accent cursor-pointer transition-colors ${
+                  selectedRoomId === room._id ? "bg-accent" : ""
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <img
+                      src={roomAvatar}
+                      alt={roomName}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                    {room.type == "direct" &&
+                      memberData?.[0] &&
+                      status[memberData?.[0]?._id]?.isOnline && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-status-online border-2 border-background rounded-full"></div>
+                      )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 mb-1">
+                      {getRoomIcon(room.type)}
+                      <p className="font-medium text-sm truncate">{roomName}</p>
+                      {/* {room.unreadCount && room.unreadCount > 0 && (
                       <span className="bg-chat-primary text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
                         {room.unreadCount}
                       </span>
-                    )}
+                    )} */}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {/* {room.lastMessage} */}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {room.lastMessage}
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {room.lastSeen}
+                  <div className="text-xs text-muted-foreground">
+                    {/* {room.lastSeen} */}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Quick Actions */}

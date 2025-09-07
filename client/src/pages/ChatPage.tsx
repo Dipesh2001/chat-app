@@ -4,7 +4,7 @@ import EnhancedChatSection from "../components/EnhancedChatSection";
 import EnhancedSidebar from "../components/EnhancedSidebar";
 import Sidebar from "../components/Sidebar";
 import { successToast } from "../helper";
-import socket from "../utils/socket";
+import { disconnectSocket } from "../utils/socket";
 import {
   useLogoutUserMutation,
   useValidateUserQuery,
@@ -27,15 +27,7 @@ const ChatPage = () => {
   const [logoutAdmin] = useLogoutUserMutation();
   const navigate = useNavigate();
   const [selectedRoom, setSelectedRoom] = useState<Room | undefined>();
-  const { data, isLoading, error } = useValidateUserQuery();
-  // Mock current user - replace with real user data
-  const currentUser = {
-    id: "1",
-    name: "John Doe",
-    email: "john@example.com",
-    profileImage:
-      "https://placehold.co/200x/b7a8ff/ffffff.svg?text=JD&font=Lato",
-  };
+  const { data: userData, isLoading, error } = useValidateUserQuery();
   return (
     // <div className="flex h-screen overflow-hidden">
     //   <Sidebar />
@@ -44,18 +36,19 @@ const ChatPage = () => {
 
     <div className="flex h-screen overflow-hidden bg-background">
       <EnhancedSidebar
-        currentUser={data?.user}
+        currentUser={userData?.user}
         onLogout={async () => {
           const { error } = await logoutAdmin();
+          disconnectSocket();
           if (!error) {
             successToast("Logged out successfully.");
             navigate("/login");
           }
         }}
-        onRoomSelect={setSelectedRoom}
-        selectedRoomId={selectedRoom?.id}
+        // onRoomSelect={setSelectedRoom}
+        // selectedRoomId={selectedRoom?.id}
       />
-      <EnhancedChatSection selectedRoom={selectedRoom} />
+      {/* <EnhancedChatSection selectedRoom={selectedRoom} /> */}
     </div>
   );
 };

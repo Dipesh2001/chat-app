@@ -1,14 +1,15 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import type { User, QueryResponse } from "../app/types";
+import type { User, QueryResponse, pagination } from "../app/types";
 import { errorToast, successToast } from "../helper";
 
 type responseType = { user: User; authToken: string };
+type responseListType = { users: User[]; pagination: pagination };
 
 interface userResponse extends QueryResponse<responseType> {}
-interface usersResponse extends QueryResponse<{ users: User[] }> {}
+interface usersResponse extends QueryResponse<responseListType> {}
 
 export const userApi = createApi({
-  reducerPath: "api",
+  reducerPath: "user",
   baseQuery: fetchBaseQuery({
     baseUrl: "http://localhost:4000/api/user",
     credentials: "include",
@@ -23,15 +24,12 @@ export const userApi = createApi({
       }),
       transformResponse: (res: userResponse) => res?.data,
     }),
-    fetchUsers: builder.query<
-      User[],
-      { page: number; size: number; search: string }
-    >({
+    fetchUsers: builder.query<responseListType, pagination>({
       query: ({ page, size, search }) => ({
         url: `/fetch?page=${page}&size=${size}&search=${search}`,
         method: "get",
       }),
-      transformResponse: (res: { users: User[] }) => res?.data,
+      transformResponse: (res: usersResponse) => res?.data,
     }),
     loginUser: builder.mutation<responseType, Partial<User>>({
       query: (body) => ({
@@ -41,9 +39,7 @@ export const userApi = createApi({
       }),
       invalidatesTags: ["User"],
       transformResponse: (res: userResponse) => {
-        console.log({ res });
         if (res.success) {
-          console.log("here");
           successToast(res.message || "User logged in successfully.");
         } else {
           errorToast(res.message || "Something went wrong.");

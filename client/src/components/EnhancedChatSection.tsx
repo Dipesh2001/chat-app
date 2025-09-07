@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypeIndicator";
-import socket from "../utils/socket";
+import { socket } from "../utils/socket";
 
 interface Room {
   id: string;
@@ -55,38 +55,39 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
   }, [messages]);
 
   useEffect(() => {
-    socket.on("chat-message", (msg) => {
+    socket?.on("chat-message", (msg) => {
       const newMessage: Message = {
         id: msg.id + Date.now(),
         senderId: msg.id,
-        senderName: msg.id === socket.id ? "You" : selectedRoom?.name || "User",
+        senderName:
+          msg.id === socket?.id ? "You" : selectedRoom?.name || "User",
         senderAvatar:
-          msg.id === socket.id
+          msg.id === socket?.id
             ? "https://placehold.co/200x/b7a8ff/ffffff.svg?text=ME&font=Lato"
             : selectedRoom?.avatar ||
               "https://placehold.co/200x/ffa8e4/ffffff.svg?text=U&font=Lato",
         content: msg.message,
         timestamp: new Date(),
-        status: msg.id === socket.id ? "sent" : "delivered",
+        status: msg.id === socket?.id ? "sent" : "delivered",
         type: "text",
       };
       setMessages((prev) => [...prev, newMessage]);
     });
 
     return () => {
-      socket.off("chat-message");
+      socket?.off("chat-message");
     };
   }, [selectedRoom]);
 
   const sendMessage = () => {
     if (message.trim() && selectedRoom) {
       const msg = {
-        id: socket.id,
+        id: socket?.id,
         message: message.trim(),
         roomId: selectedRoom.id,
         timestamp: new Date().toISOString(),
       };
-      socket.emit("chat-message", msg);
+      socket?.emit("chat-message", msg);
       setMessage("");
     }
   };
@@ -184,7 +185,7 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
           <MessageBubble
             key={msg.id}
             message={msg}
-            isOwn={msg.senderId === socket.id}
+            isOwn={msg.senderId === socket?.id}
           />
         ))}
 

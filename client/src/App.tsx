@@ -1,5 +1,5 @@
 // src/App.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { protectedRoutes, publicRoutes } from "./app/routes";
 import "react-toastify/dist/ReactToastify.css";
 import {
@@ -9,13 +9,22 @@ import {
   Navigate,
 } from "react-router-dom";
 import { useValidateUserQuery } from "./features/userApi";
+import { disconnectSocket, initSocket } from "./utils/socket";
 
 const App: React.FC = () => {
-   const { data, isLoading, error } = useValidateUserQuery();
-   const isAuthenticated = error ? false : !!data?.authToken;
- if (!isLoading) {
+  const { data, isLoading, error } = useValidateUserQuery();
+  const isAuthenticated = error ? false : !!data?.authToken;
+  useEffect(() => {
+    if (data?.user?._id) {
+      initSocket(data?.user?._id); // connect only if logged in
+      return () => {
+        disconnectSocket(); // cleanup on logout or unmount
+      };
+    }
+  }, [isAuthenticated]);
+  if (!isLoading) {
     return (
-     <Router>
+      <Router>
         <Routes>
           {(isAuthenticated ? protectedRoutes : publicRoutes).map(
             ({ path, element }, ind) => {
@@ -29,7 +38,7 @@ const App: React.FC = () => {
               );
             }
           )}
-          
+
           <Route
             path="*"
             element={

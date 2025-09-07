@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Users, Hash, MessageCircle, Upload, Search } from "lucide-react";
 import { useLazyFetchUsersQuery } from "../features/userApi";
 import type { User } from "../app/types";
@@ -16,7 +16,7 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
   const [isPrivate, setIsPrivate] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [fetchUsers, { data: usersList }] = useLazyFetchUsersQuery();
+  const [fetchUsers, { isFetching }] = useLazyFetchUsersQuery();
 
   const handleCreate = () => {
     // Handle room creation logic here
@@ -31,11 +31,43 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
     onClose();
   };
 
-  useEffect(() => {
-    fetchUsers({ page: 1, size: 3, search: searchQuery });
-  }, [fetchUsers, searchQuery]);
+  // useEffect(() => {
+  //   fetchUsers({ page: 1, size: 6, search: searchQuery });
+  // }, [fetchUsers, searchQuery]);
 
-  console.log({ usersList });
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+
+  // Fetch users when page/search changes
+  useEffect(() => {
+    fetchUsers({ page, size: 6, search: searchQuery })
+      .unwrap()
+      .then((res) => {
+        setUsers((prev) => {
+          let updatedList = [...prev, ...res.users];
+          setHasMore(
+            updatedList?.length === res.pagination?.totalItems ? false : true
+          );
+          return updatedList;
+        });
+      });
+  }, [fetchUsers, page, searchQuery]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  const handleScroll = () => {
+    const el = listRef.current;
+    if (!el || isFetching || !hasMore) return;
+
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
+      setPage((p) => p + 1);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -157,7 +189,7 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
             </div>
           )}
           {/* Search */}
-          <div className="p-4 border-b border-border">
+          <div className="border-b border-border">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <input
@@ -175,34 +207,42 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
             <label className="text-sm font-medium mb-3 block">
               {roomType === "direct" ? "Select User" : "Add Members"}
             </label>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {usersList?.users?.map((user: User) => (
+            <div
+              ref={listRef}
+              onScroll={handleScroll}
+              className="space-y-2 max-h-40 overflow-y-auto"
+            >
+              {users?.map((user: User) => (
                 <label
-                  key={user.id}
+                  key={user._id}
                   className="flex items-center space-x-3 p-2 rounded-lg hover:bg-accent cursor-pointer"
                 >
                   <input
                     type={roomType === "direct" ? "radio" : "checkbox"}
                     name={roomType === "direct" ? "selectedUser" : undefined}
-                    checked={selectedUsers.includes(user.id)}
+                    checked={selectedUsers.includes(user._id)}
                     onChange={(e) => {
                       if (roomType === "direct") {
-                        setSelectedUsers(e.target.checked ? [user.id] : []);
+                        setSelectedUsers(e.target.checked ? [user._id] : []);
                       } else {
                         setSelectedUsers((prev) =>
                           e.target.checked
-                            ? [...prev, user.id]
-                            : prev.filter((id) => id !== user.id)
+                            ? [...prev, user._id]
+                            : prev.filter((id) => id !== user._id)
                         );
                       }
                     }}
                     className="w-4 h-4 text-chat-primary rounded focus:ring-chat-primary"
                   />
                   <img
-                    src={`https://placehold.co/200x/87ceeb/ffffff.svg?text=${user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}&font=Lato`}
+                    src={
+                      user?.profileImage
+                        ? user?.profileImage
+                        : `https://placehold.co/200x/87ceeb/ffffff.svg?text=${user.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}&font=Lato`
+                    }
                     alt={user.name}
                     className="w-8 h-8 rounded-full object-cover"
                   />
@@ -235,7 +275,7 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
             }
             className="px-4 py-2 bg-chat-primary hover:bg-chat-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
           >
-            Create{" "}
+            Start{" "}
             {roomType === "group"
               ? "Group"
               : roomType === "channel"

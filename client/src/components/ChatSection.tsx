@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import socket from "../utils/socket";
+// import socket from "../utils/socket";
 
 const ChatSection = () => {
   const [message, setMessage] = useState("");
@@ -7,29 +7,29 @@ const ChatSection = () => {
     []
   );
 
-  useEffect(() => {
-    socket.on("chat-message", (msg) => {
-      console.log({ msg });
+  // useEffect(() => {
+  //   socket.on("chat-message", (msg) => {
+  //     console.log({ msg });
 
-      setMessages((prevMessages) => [...prevMessages, msg]); // Add new messages
-    });
+  //     setMessages((prevMessages) => [...prevMessages, msg]); // Add new messages
+  //   });
 
-    return () => {
-      socket.off("chat-message"); // Clean up the listener
-    };
-  }, []);
+  //   return () => {
+  //     socket.off("chat-message"); // Clean up the listener
+  //   };
+  // }, []);
 
-  const sendMessage = () => {
-    if (message.trim()) {
-      const msg = { id: socket.id, message };
-      socket.emit("chat-message", msg); // Send message with username to server
-      setMessage(""); // Clear message input
-    }
-  };
+  // const sendMessage = () => {
+  //   if (message.trim()) {
+  //     const msg = { id: socket.id, message };
+  //     socket.emit("chat-message", msg); // Send message with username to server
+  //     setMessage(""); // Clear message input
+  //   }
+  // };
 
   return (
     <div className="flex-1">
-      <header className="bg-white p-4 text-gray-700">
+      {/* <header className="bg-white p-4 text-gray-700">
         <h1 className="text-2xl font-semibold">Alice</h1>
       </header>
 
@@ -86,7 +86,7 @@ const ChatSection = () => {
             Send
           </button>
         </div>
-      </footer>
+      </footer> */}
     </div>
   );
 };
