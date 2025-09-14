@@ -15,13 +15,23 @@ const App: React.FC = () => {
   const { data, isLoading, error } = useValidateUserQuery();
   const isAuthenticated = error ? false : !!data?.authToken;
   useEffect(() => {
-    if (data?.user?._id) {
-      initSocket(data?.user?._id); // connect only if logged in
+    if (isAuthenticated && data?.user?._id) {
+      console.log("Attempting to initialize socket...");
+      initSocket(data.user._id);
+
+      // 🧹 Cleanup function
       return () => {
-        disconnectSocket(); // cleanup on logout or unmount
+        console.log("Cleaning up socket connection...");
+        disconnectSocket();
       };
+    } else {
+      console.log(
+        "User not authenticated or data not available. Disconnecting socket."
+      );
+      disconnectSocket();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, data?.user?._id]); // Add data?.user?._id to dependencies
+
   if (!isLoading) {
     return (
       <Router>

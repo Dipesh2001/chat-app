@@ -9,25 +9,22 @@ import {
   useLogoutUserMutation,
   useValidateUserQuery,
 } from "../features/userApi";
-import { useState } from "react";
-
-interface Room {
-  id: string;
-  name: string;
-  type: "direct" | "group" | "channel";
-  avatar?: string;
-  lastMessage?: string;
-  lastSeen?: string;
-  unreadCount?: number;
-  isOnline?: boolean;
-  members?: string[];
-}
+import { useEffect, useState } from "react";
+import { useLazyFetchRoomQuery } from "../features/roomApi";
+import type { Room } from "../app/types";
 
 const ChatPage = () => {
   const [logoutAdmin] = useLogoutUserMutation();
   const navigate = useNavigate();
   const [selectedRoom, setSelectedRoom] = useState<Room | undefined>();
   const { data: userData, isLoading, error } = useValidateUserQuery();
+  const [fetchRoom, { data: selectedData }] = useLazyFetchRoomQuery();
+
+  useEffect(() => {
+    fetchRoom(selectedRoom?._id || "");
+  }, [selectedRoom?._id]);
+
+  console.log({ selectedData });
   return (
     // <div className="flex h-screen overflow-hidden">
     //   <Sidebar />
@@ -45,10 +42,13 @@ const ChatPage = () => {
             navigate("/login");
           }
         }}
-        // onRoomSelect={setSelectedRoom}
-        // selectedRoomId={selectedRoom?.id}
+        onRoomSelect={setSelectedRoom}
+        selectedRoomId={selectedRoom?._id}
       />
-      {/* <EnhancedChatSection selectedRoom={selectedRoom} /> */}
+      <EnhancedChatSection
+        currentUser={userData?.user}
+        selectedRoom={selectedData?.room || selectedRoom}
+      />
     </div>
   );
 };

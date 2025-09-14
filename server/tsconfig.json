@@ -1,11 +1,25 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "moduleResolution": "node",
+    /* Output */
+    "outDir": "dist",
+    "rootDir": "src",
+
+    /* Speed optimizations */
+    "incremental": true,            // Caches previous build results
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "skipLibCheck": true,            // Skip checking .d.ts files (huge speed boost)
+    "isolatedModules": true,         // Allows faster single-file transpile
+    "noEmitOnError": false,           // Still emit JS even if types fail
+
+    /* Module system */
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+
+    /* Strictness (keep if you want type safety) */
+    "strict": true,
     "esModuleInterop": true,
-    "strict": true
-  }
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
 }

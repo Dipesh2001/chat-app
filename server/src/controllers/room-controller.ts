@@ -114,8 +114,8 @@ export const getRoom = async (req: Request, res: Response) => {
     const userId = (req as authRequest).user?._id;
 
     const room = await Room.findById(roomId)
-      .populate("owner", "name email avatar")
-      .populate("members", "name email avatar")
+      .populate("owner", "name email profileImage")
+      .populate("members", "name email profileImage lastSeen")
       .lean();
 
     if (!room) return errorResponse(res, "Room not found", {}, 404);
@@ -133,7 +133,7 @@ export const getRoom = async (req: Request, res: Response) => {
       );
     }
 
-    return successResponse(res, "Room fetched successfully", room);
+    return successResponse(res, "Room fetched successfully", { room });
   } catch (err: any) {
     return errorResponse(res, err.message || "Error fetching room");
   }

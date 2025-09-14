@@ -22,7 +22,14 @@ export const roomApi = createApi({
       }),
       transformResponse: (res: roomsResponse) => res?.data,
     }),
+    fetchRoom: builder.query<responseType, string>({
+      query: (roomId: string) => ({
+        url: `/${roomId}`,
+        method: "get",
+      }),
+      transformResponse: (res: roomResponse) => res?.data,
+    }),
   }),
 });
 
-export const { useLazyFetchRoomsQuery } = roomApi;
+export const { useLazyFetchRoomsQuery, useLazyFetchRoomQuery } = roomApi;

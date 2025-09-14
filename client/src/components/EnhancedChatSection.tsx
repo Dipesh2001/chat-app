@@ -11,18 +11,10 @@ import {
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypeIndicator";
 import { socket } from "../utils/socket";
-
-interface Room {
-  id: string;
-  name: string;
-  type: "direct" | "group" | "channel";
-  avatar?: string;
-  lastMessage?: string;
-  lastSeen?: string;
-  unreadCount?: number;
-  isOnline?: boolean;
-  members?: string[];
-}
+import type { Room, User } from "../app/types";
+import { useSelector } from "react-redux";
+import type { RootState } from "../app/store";
+import { formatLastSeen } from "../helper";
 
 interface Message {
   id: string;
@@ -37,14 +29,26 @@ interface Message {
 
 interface EnhancedChatSectionProps {
   selectedRoom?: Room;
+  currentUser?: User | null;
 }
 
-const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
+const EnhancedChatSection = ({
+  selectedRoom,
+  currentUser,
+}: EnhancedChatSectionProps) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const status = useSelector((state: RootState) => state.userStatus);
+  let memberData = selectedRoom?.members.filter(
+    (el: any) => el?._id != currentUser?._id
+  );
+  let roomName =
+    selectedRoom?.type == "direct" ? memberData?.[0]?.name : "Unknown";
+  let roomAvatar =
+    selectedRoom?.type == "direct" ? memberData?.[0]?.profileImage : "Unknown";
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,6 +60,7 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
 
   useEffect(() => {
     socket?.on("chat-message", (msg) => {
+      console.log({ msg });
       const newMessage: Message = {
         id: msg.id + Date.now(),
         senderId: msg.id,
@@ -64,7 +69,7 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
         senderAvatar:
           msg.id === socket?.id
             ? "https://placehold.co/200x/b7a8ff/ffffff.svg?text=ME&font=Lato"
-            : selectedRoom?.avatar ||
+            : roomAvatar ||
               "https://placehold.co/200x/ffa8e4/ffffff.svg?text=U&font=Lato",
         content: msg.message,
         timestamp: new Date(),
@@ -84,7 +89,7 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
       const msg = {
         id: socket?.id,
         message: message.trim(),
-        roomId: selectedRoom.id,
+        roomId: selectedRoom?._id,
         timestamp: new Date().toISOString(),
       };
       socket?.emit("chat-message", msg);
@@ -122,22 +127,24 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
         <div className="flex items-center space-x-3">
           <div className="relative">
             <img
-              src={selectedRoom.avatar}
-              alt={selectedRoom.name}
+              src={roomAvatar}
+              alt={roomName}
               className="w-10 h-10 rounded-full object-cover"
             />
-            {selectedRoom.isOnline && (
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-status-online border-2 border-background rounded-full"></div>
-            )}
+            {selectedRoom.type == "direct" &&
+              memberData?.[0] &&
+              status[memberData?.[0]?._id]?.isOnline && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-status-online border-2 border-background rounded-full"></div>
+              )}
           </div>
           <div>
-            <h2 className="font-semibold text-foreground">
-              {selectedRoom.name}
-            </h2>
+            <h2 className="font-semibold text-foreground">{roomName}</h2>
             <p className="text-xs text-muted-foreground">
-              {selectedRoom.isOnline
+              {selectedRoom.type == "direct" &&
+              memberData?.[0] &&
+              status[memberData?.[0]?._id]?.isOnline
                 ? "Online"
-                : `Last seen ${selectedRoom.lastSeen}`}
+                : formatLastSeen(memberData?.[0]?.lastSeen || "")}
             </p>
           </div>
         </div>
@@ -189,7 +196,7 @@ const EnhancedChatSection = ({ selectedRoom }: EnhancedChatSectionProps) => {
           />
         ))}
 
-        {isTyping && <TypingIndicator avatar={selectedRoom.avatar} />}
+        {isTyping && <TypingIndicator avatar={roomAvatar} />}
         <div ref={messagesEndRef} />
       </div>
 

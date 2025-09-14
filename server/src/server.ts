@@ -45,7 +45,7 @@ io.on("connection", async (socket: Socket) => {
   const userIdValue = socket.handshake.query.userId || "";
   const userId = userIdValue || userIdValue[0];
   if (userId) {
-    onlineUsers.set(userId, socket.id);
+    onlineUsers.set(Array.isArray(userId) ? userId[0] : userId, socket.id);
     await User.findByIdAndUpdate(userId, { isOnline: true }).exec();
     socket.broadcast.emit("user:online", { userId });
     socket.emit("users:online-list", { users: Array.from(onlineUsers.keys()) });
@@ -60,7 +60,7 @@ io.on("connection", async (socket: Socket) => {
   socket.on("disconnect", async () => {
     console.log("user disconnected:", socket.id);
     if (userId) {
-      onlineUsers.delete(userId);
+      onlineUsers.delete(Array.isArray(userId) ? userId[0] : userId);
       await User.findByIdAndUpdate(userId, {
         isOnline: false,
         lastSeen: new Date(),

@@ -41,9 +41,14 @@ const userStatusSlice = createSlice({
     ) => {
       Object.assign(state, action.payload);
     },
+    resetStatuses: () => initialState,
   },
 });
 
-export const { setUserOnline, setUserOffline, setMultipleStatuses } =
-  userStatusSlice.actions;
+export const {
+  setUserOnline,
+  setUserOffline,
+  setMultipleStatuses,
+  resetStatuses,
+} = userStatusSlice.actions;
 export default userStatusSlice.reducer;

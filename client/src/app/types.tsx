@@ -9,6 +9,7 @@ export interface User extends common {
   email: string;
   password: string;
   profileImage: string;
+  lastSeen?: string; // ISO string
 }
 
 export type InviteStatus = "pending" | "accepted" | "rejected";

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Search,
   Plus,
@@ -34,7 +34,7 @@ import { useSelector } from "react-redux";
 interface EnhancedSidebarProps {
   currentUser: User | undefined;
   onLogout: () => void;
-  onRoomSelect: (room: Room) => void;
+  onRoomSelect:React.Dispatch<React.SetStateAction<Room | undefined>>;
   selectedRoomId?: string;
 }
 
@@ -50,7 +50,6 @@ const EnhancedSidebar = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [fetchRooms, { isFetching }] = useLazyFetchRoomsQuery();
   const status = useSelector((state: RootState) => state.userStatus);
-  console.log({ status });
 
   // Mock data - replace with real data
   // const rooms: Room[] = [
@@ -205,7 +204,7 @@ const EnhancedSidebar = ({
           </div>
         </div>
 
-        {/* <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border">
           <div className="flex gap-2">
             <button
               onClick={() => setShowCreateModal(true)}
@@ -221,7 +220,7 @@ const EnhancedSidebar = ({
               <Users className="w-4 h-4" />
             </button>
           </div>
-        </div> */}
+        </div>
 
         {/* Rooms List */}
         <div className="flex-1 overflow-y-auto">
