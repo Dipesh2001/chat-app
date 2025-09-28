@@ -17,7 +17,11 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated && data?.user?._id) {
       console.log("Attempting to initialize socket...");
-      initSocket(data.user._id);
+      initSocket({
+        currentUserId: data.user._id,
+        userName: data.user.name,
+        userAvatar: data.user.profileImage,
+      });
 
       // 🧹 Cleanup function
       return () => {

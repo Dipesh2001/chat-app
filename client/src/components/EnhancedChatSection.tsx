@@ -11,21 +11,11 @@ import {
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypeIndicator";
 import { socket } from "../utils/socket";
-import type { Room, User } from "../app/types";
+import type { Message, Room, User } from "../app/types";
 import { useSelector } from "react-redux";
 import type { RootState } from "../app/store";
 import { formatLastSeen } from "../helper";
-
-interface Message {
-  id: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar: string;
-  content: string;
-  timestamp: Date;
-  status: "sending" | "sent" | "delivered" | "read";
-  type: "text" | "image" | "file" | "audio";
-}
+import { useLazyFetchMessagesQuery } from "../features/messageApi";
 
 interface EnhancedChatSectionProps {
   selectedRoom?: Room;
@@ -37,11 +27,18 @@ const EnhancedChatSection = ({
   currentUser,
 }: EnhancedChatSectionProps) => {
   const [message, setMessage] = useState("");
+  const listRef = useRef<HTMLDivElement | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const status = useSelector((state: RootState) => state.userStatus);
+
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [fetchMessages, { isLoading, isFetching }] =
+    useLazyFetchMessagesQuery();
   let memberData = selectedRoom?.members.filter(
     (el: any) => el?._id != currentUser?._id
   );
@@ -55,32 +52,52 @@ const EnhancedChatSection = ({
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (page == 1) {
+      scrollToBottom();
+    }
+  }, [messages, page]);
 
   useEffect(() => {
-    socket?.on("chat-message", (msg) => {
-      console.log({ msg });
-      const newMessage: Message = {
-        id: msg.id + Date.now(),
-        senderId: msg.id,
-        senderName:
-          msg.id === socket?.id ? "You" : selectedRoom?.name || "User",
-        senderAvatar:
-          msg.id === socket?.id
-            ? "https://placehold.co/200x/b7a8ff/ffffff.svg?text=ME&font=Lato"
-            : roomAvatar ||
-              "https://placehold.co/200x/ffa8e4/ffffff.svg?text=U&font=Lato",
-        content: msg.message,
-        timestamp: new Date(),
-        status: msg.id === socket?.id ? "sent" : "delivered",
-        type: "text",
-      };
-      setMessages((prev) => [...prev, newMessage]);
-    });
+    if (!selectedRoom) return;
+    const chatContainer = messagesEndRef.current?.parentElement;
+
+    fetchMessages({ page, size: 8, roomId: selectedRoom._id })
+      .unwrap()
+      .then((res) => {
+        setMessages((prev: Message[]) => {
+          let updated = [...res.messages, ...prev];
+          if (page == 1 && prev.length == 8) {
+            return prev;
+          }
+          setHasMore(updated.length < (res.pagination?.totalItems || 0));
+          return updated;
+        });
+
+        if (chatContainer) {
+          const prevScrollHeight = chatContainer.scrollHeight;
+          setTimeout(() => {
+            chatContainer.scrollTop =
+              chatContainer.scrollHeight - prevScrollHeight;
+          }, 100);
+        }
+      });
+  }, [selectedRoom, page]);
+
+  // Socket listener runs once
+  useEffect(() => {
+    if (!selectedRoom || !socket) return;
+
+    socket.emit("join-room", selectedRoom._id);
+
+    const handler = (msg: any) => {
+      setMessages((prev) => [...prev, msg]);
+    };
+
+    socket.on("chat-message", handler);
 
     return () => {
-      socket?.off("chat-message");
+      socket?.off("chat-message", handler);
+      socket?.emit("leave-room", selectedRoom._id);
     };
   }, [selectedRoom]);
 
@@ -101,6 +118,15 @@ const EnhancedChatSection = ({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const handleScroll = () => {
+    const el = listRef.current;
+    if (!el || isFetching || !hasMore) return;
+
+    if (el.scrollTop == 0) {
+      setPage((p) => p + 1);
     }
   };
 
@@ -187,14 +213,20 @@ const EnhancedChatSection = ({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            isOwn={msg.senderId === socket?.id}
-          />
-        ))}
+      <div
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        ref={listRef}
+      >
+        {messages.map((msg, ind) => {
+          return (
+            <MessageBubble
+              key={msg._id}
+              message={msg}
+              isOwn={msg.senderId === currentUser?._id}
+            />
+          );
+        })}
 
         {isTyping && <TypingIndicator avatar={roomAvatar} />}
         <div ref={messagesEndRef} />

@@ -1,16 +1,28 @@
 // src/utils/socket.ts
 import { io, Socket } from "socket.io-client";
 import { store } from "../app/store";
-import { resetStatuses, setUserOffline, setUserOnline } from "../features/userStatusSlice";
+import {
+  resetStatuses,
+  setUserOffline,
+  setUserOnline,
+} from "../features/userStatusSlice";
 
 export let socket: Socket | null = null;
 
-export const initSocket = (currentUserId: string) => {
+export const initSocket = ({
+  currentUserId,
+  userName,
+  userAvatar,
+}: {
+  currentUserId: string;
+  userName: string;
+  userAvatar: string;
+}) => {
   if ((socket && socket.connected) || !currentUserId) return socket; // already connected
 
   socket = io("http://localhost:4000", {
     autoConnect: true,
-    query: { userId: currentUserId },
+    query: { userId: currentUserId, userName, userAvatar },
     transports: ["websocket"], // force websocket for reliability
   });
 
@@ -23,7 +35,7 @@ export const initSocket = (currentUserId: string) => {
   });
 
   socket.on("user:offline", ({ userId, lastSeen }) => {
-    if (userId === currentUserId) return; // 
+    if (userId === currentUserId) return; //
     console.log("user went offline:", userId, lastSeen);
     store.dispatch(setUserOffline({ userId, lastSeen }));
   });
@@ -36,9 +48,11 @@ export const initSocket = (currentUserId: string) => {
 
   socket.on("users:online-list", ({ users }) => {
     console.log("online users:", users);
-    users.filter((id: string) => id !== currentUserId).forEach((id: string) => {
-      store.dispatch(setUserOnline(id));
-    });
+    users
+      .filter((id: string) => id !== currentUserId)
+      .forEach((id: string) => {
+        store.dispatch(setUserOnline(id));
+      });
   });
 
   return socket;
@@ -47,7 +61,7 @@ export const initSocket = (currentUserId: string) => {
 export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();
-    store.dispatch(resetStatuses())
+    store.dispatch(resetStatuses());
     socket = null;
   }
 };

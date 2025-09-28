@@ -24,7 +24,6 @@ const ChatPage = () => {
     fetchRoom(selectedRoom?._id || "");
   }, [selectedRoom?._id]);
 
-  console.log({ selectedData });
   return (
     // <div className="flex h-screen overflow-hidden">
     //   <Sidebar />

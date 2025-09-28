@@ -1,16 +1,6 @@
 import { Check, CheckCheck } from "lucide-react";
 import { cn } from "../lib/utils";
-
-interface Message {
-  id: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar: string;
-  content: string;
-  timestamp: Date;
-  status: "sending" | "sent" | "delivered" | "read";
-  type: "text" | "image" | "file" | "audio";
-}
+import type { Message } from "../app/types";
 
 interface MessageBubbleProps {
   message: Message;
@@ -52,7 +42,7 @@ const MessageBubble = ({ message, isOwn }: MessageBubbleProps) => {
           </div>
           <div className="flex items-center justify-end mt-1 space-x-1">
             <span className="text-xs text-muted-foreground">
-              {formatTime(message.timestamp)}
+              {formatTime(new Date(message.updatedAt || ""))}
             </span>
             <div className="text-muted-foreground">{getStatusIcon()}</div>
           </div>
@@ -81,7 +71,7 @@ const MessageBubble = ({ message, isOwn }: MessageBubbleProps) => {
         </div>
         <div className="flex items-center mt-1">
           <span className="text-xs text-muted-foreground">
-            {formatTime(message.timestamp)}
+            {formatTime(new Date(message.updatedAt || ""))}
           </span>
         </div>
       </div>

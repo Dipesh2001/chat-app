@@ -4,11 +4,13 @@ import http from "http";
 import { Server, Socket } from "socket.io";
 import userRoutes from "./routes/user-routes";
 import roomRoutes from "./routes/room-routes";
+import messageRoutes from "./routes/message-routes";
 import { errorHandler } from "./middleware/error-handler";
 import cors from "cors";
 import { connectDB } from "./config/db";
 import cookieParser from "cookie-parser";
 import { User } from "./models/user-model";
+import { Message } from "./models/message-model";
 const PORT = process.env.PORT || 5000;
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +19,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use("/api/user", userRoutes);
 app.use("/api/room", roomRoutes);
+app.use("/api/message", messageRoutes);
 app.use("/uploads", express.static("uploads"));
 
 app.get("/", (req: Request, res: Response) => {
@@ -42,8 +45,15 @@ function isJsonString(str: string) {
 const onlineUsers = new Map<string, string>();
 // Handling client connections
 io.on("connection", async (socket: Socket) => {
+  console.log("connection connected");
   const userIdValue = socket.handshake.query.userId || "";
+  const userNameValue = socket.handshake.query.userName || "";
+  const userAvatarValue = socket.handshake.query.userAvatar || "";
   const userId = userIdValue || userIdValue[0];
+  const userName = userNameValue || userNameValue[0];
+  const userAvatar = userAvatarValue || userAvatarValue[0];
+
+  console.log({ userAvatar });
   if (userId) {
     onlineUsers.set(Array.isArray(userId) ? userId[0] : userId, socket.id);
     await User.findByIdAndUpdate(userId, { isOnline: true }).exec();
@@ -51,9 +61,40 @@ io.on("connection", async (socket: Socket) => {
     socket.emit("users:online-list", { users: Array.from(onlineUsers.keys()) });
   }
 
-  // Chat message event
-  socket.on("chat-message", (msg: string) => {
-    io.emit("chat-message", msg); // Broadcast to all clients
+  socket.on("join-room", (roomId: string) => {
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined ${roomId}`);
+  });
+
+  socket.on("leave-room", (roomId: string) => {
+    socket.leave(roomId);
+    console.log(`User ${socket.id} left ${roomId}`);
+  });
+
+  socket.on("chat-message", async (data) => {
+    try {
+      // destructure from client payload
+      const { message, roomId, timestamp } = data;
+
+      // Map client fields -> DB fields
+      const messageData = await Message.create({
+        roomId,
+        senderId: userId, // from socket handshake
+        senderName: userName || "Unknown", // or fetch from DB
+        content: message, // rename "message" -> "content"
+        senderAvatar: userAvatar,
+        type: "text",
+        status: "sent",
+        timestamp, // optional, mongoose will auto-set createdAt
+      });
+
+      // Emit the saved message to room
+      io.to(roomId).emit("chat-message", messageData);
+      // io.emit("chat-message", data);
+    } catch (err) {
+      console.error("Error saving message:", err);
+      // socket.emit("error", "Message not saved");
+    }
   });
 
   // Disconnect event

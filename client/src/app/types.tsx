@@ -28,8 +28,17 @@ export interface Room extends common {
   type: "direct" | "group" | "channel";
   owner: String;
   members: Partial<User[]>; // users in room
-  createdAt: Date;
-  updatedAt: Date;
+}
+
+export interface Message extends Partial<common> {
+  roomId?: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  content: string;
+  timestamp?: Date;
+  status: "sending" | "sent" | "delivered" | "read";
+  type: "text" | "image" | "file" | "audio";
 }
 
 export interface QueryResponse<T> {
