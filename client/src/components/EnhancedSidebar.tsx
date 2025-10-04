@@ -18,6 +18,8 @@ import type { User, Room } from "../app/types";
 import { useLazyFetchRoomsQuery } from "../features/roomApi";
 import type { RootState } from "../app/store";
 import { useSelector } from "react-redux";
+import { useNavigate, useParams } from "react-router-dom";
+import { socket } from "../utils/socket";
 
 // interface Room {
 //   id: string;
@@ -34,7 +36,7 @@ import { useSelector } from "react-redux";
 interface EnhancedSidebarProps {
   currentUser: User | undefined;
   onLogout: () => void;
-  onRoomSelect:React.Dispatch<React.SetStateAction<Room | undefined>>;
+  onRoomSelect: React.Dispatch<React.SetStateAction<Room | undefined>>;
   selectedRoomId?: string;
 }
 
@@ -51,47 +53,21 @@ const EnhancedSidebar = ({
   const [fetchRooms, { isFetching }] = useLazyFetchRoomsQuery();
   const status = useSelector((state: RootState) => state.userStatus);
 
-  // Mock data - replace with real data
-  // const rooms: Room[] = [
-  //   {
-  //     id: "1",
-  //     name: "Alice Johnson",
-  //     type: "direct",
-  //     avatar: "https://placehold.co/200x/ffa8e4/ffffff.svg?text=AJ&font=Lato",
-  //     lastMessage: "Hey there! How are you?",
-  //     lastSeen: "2 min ago",
-  //     unreadCount: 3,
-  //     isOnline: true,
-  //   },
-  //   {
-  //     id: "2",
-  //     name: "Development Team",
-  //     type: "group",
-  //     avatar: "https://placehold.co/200x/b7a8ff/ffffff.svg?text=DT&font=Lato",
-  //     lastMessage: "The new feature is ready",
-  //     lastSeen: "10 min ago",
-  //     unreadCount: 1,
-  //     members: ["Alice", "Bob", "Charlie"],
-  //   },
-  //   {
-  //     id: "3",
-  //     name: "general",
-  //     type: "channel",
-  //     avatar: "https://placehold.co/200x/87ceeb/ffffff.svg?text=G&font=Lato",
-  //     lastMessage: "Welcome everyone!",
-  //     lastSeen: "1 hour ago",
-  //     unreadCount: 0,
-  //   },
-  // ];
-
-  // const filteredRooms = rooms.filter((room) =>
-  //   room.name.toLowerCase().includes(searchQuery.toLowerCase())
-  // );
-
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const listRef = useRef<HTMLDivElement | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const navigate = useNavigate();
+  const { roomId } = useParams();
+  const [changed, setChanged] = useState(false);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+    socket?.on("room-created", () => {
+      setChanged(!changed);
+    });
+  }, [searchQuery, roomId, socket]);
 
   // Fetch users when page/search changes
   useEffect(() => {
@@ -100,18 +76,15 @@ const EnhancedSidebar = ({
       .then((res) => {
         setRooms((prev: Room[]) => {
           let updatedList = [...prev, ...res.rooms];
+
+          if (page === 1) return res.rooms;
           setHasMore(
             updatedList?.length === res.pagination?.totalItems ? false : true
           );
           return updatedList;
         });
       });
-  }, [fetchRooms, page, searchQuery]);
-
-  // Reset page when search changes
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery]);
+  }, [fetchRooms, page, searchQuery, roomId, changed]);
 
   const handleScroll = () => {
     const el = listRef.current;
@@ -235,7 +208,10 @@ const EnhancedSidebar = ({
             return (
               <div
                 key={room._id}
-                onClick={() => onRoomSelect(room)}
+                onClick={() => {
+                  onRoomSelect(room);
+                  navigate(`/${room._id}`, { replace: true });
+                }}
                 className={`p-3 border-b border-border hover:bg-accent cursor-pointer transition-colors ${
                   selectedRoomId === room._id ? "bg-accent" : ""
                 }`}

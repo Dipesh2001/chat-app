@@ -27,93 +27,127 @@ const EnhancedChatSection = ({
   currentUser,
 }: EnhancedChatSectionProps) => {
   const [message, setMessage] = useState("");
-  const listRef = useRef<HTMLDivElement | null>(null);
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showRoomMenu, setShowRoomMenu] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const status = useSelector((state: RootState) => state.userStatus);
-
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [fetchMessages, { isLoading, isFetching }] =
-    useLazyFetchMessagesQuery();
+
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [fetchMessages, { isFetching }] = useLazyFetchMessagesQuery();
+  const status = useSelector((state: RootState) => state.userStatus);
+
   let memberData = selectedRoom?.members.filter(
-    (el: any) => el?._id != currentUser?._id
+    (el: any) => el?._id !== currentUser?._id
   );
   let roomName =
-    selectedRoom?.type == "direct" ? memberData?.[0]?.name : "Unknown";
+    selectedRoom?.type === "direct" ? memberData?.[0]?.name : "Unknown";
   let roomAvatar =
-    selectedRoom?.type == "direct" ? memberData?.[0]?.profileImage : "Unknown";
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+    selectedRoom?.type === "direct" ? memberData?.[0]?.profileImage : "Unknown";
 
   useEffect(() => {
-    if (page == 1) {
-      scrollToBottom();
-    }
-  }, [messages, page]);
+    setMessages([]);
+    setPage(1);
+  }, [selectedRoom]);
 
+  // 🔹 Fetch messages (reversed order + scroll preservation)
   useEffect(() => {
     if (!selectedRoom) return;
-    const chatContainer = messagesEndRef.current?.parentElement;
+
+    const chatContainer = listRef.current;
+    const prevScrollHeight = chatContainer?.scrollHeight || 0;
+    const prevScrollTop = chatContainer?.scrollTop || 0;
 
     fetchMessages({ page, size: 8, roomId: selectedRoom._id })
       .unwrap()
       .then((res) => {
+        const reversed = [...res.messages].reverse(); // API gives DESC → reverse for ASC
+
         setMessages((prev: Message[]) => {
-          let updated = [...res.messages, ...prev];
-          if (page == 1 && prev.length == 8) {
-            return prev;
-          }
+          const updated = [...reversed, ...prev];
+          if (page === 1 && prev.length === 8) return prev;
           setHasMore(updated.length < (res.pagination?.totalItems || 0));
           return updated;
         });
 
-        if (chatContainer) {
-          const prevScrollHeight = chatContainer.scrollHeight;
-          setTimeout(() => {
-            chatContainer.scrollTop =
-              chatContainer.scrollHeight - prevScrollHeight;
-          }, 100);
-        }
+        // maintain scroll position
+        requestAnimationFrame(() => {
+          if (!chatContainer) return;
+          const newScrollHeight = chatContainer.scrollHeight;
+          chatContainer.scrollTop =
+            newScrollHeight - prevScrollHeight + prevScrollTop;
+        });
       });
   }, [selectedRoom, page]);
 
-  // Socket listener runs once
+  // 🔹 Socket setup for messages + typing events
   useEffect(() => {
     if (!selectedRoom || !socket) return;
 
     socket.emit("join-room", selectedRoom._id);
 
-    const handler = (msg: any) => {
+    const handleMessage = (msg: Message) => {
       setMessages((prev) => [...prev, msg]);
     };
 
-    socket.on("chat-message", handler);
+    const handleTyping = () => {
+      setIsTyping(true);
+    };
+
+    const handleStopTyping = () => {
+      setIsTyping(false);
+    };
+
+    socket.on("chat-message", handleMessage);
+    socket.on("user-typing", handleTyping);
+    socket.on("user-stop-typing", handleStopTyping);
 
     return () => {
-      socket?.off("chat-message", handler);
       socket?.emit("leave-room", selectedRoom._id);
+      socket?.off("chat-message", handleMessage);
+      socket?.off("user-typing", handleTyping);
+      socket?.off("user-stop-typing", handleStopTyping);
     };
   }, [selectedRoom]);
 
+  // 🔹 Send message
   const sendMessage = () => {
     if (message.trim() && selectedRoom) {
       const msg = {
         id: socket?.id,
         message: message.trim(),
-        roomId: selectedRoom?._id,
+        roomId: selectedRoom._id,
         timestamp: new Date().toISOString(),
       };
       socket?.emit("chat-message", msg);
+      socket?.emit("stop-typing", selectedRoom._id);
       setMessage("");
     }
   };
 
+  // 🔹 Typing events handler
+  const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+
+    if (!selectedRoom || !socket) return;
+
+    socket.emit("typing", selectedRoom._id);
+
+    // Reset previous timer
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Stop typing after 1.5s of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      socket?.emit("stop-typing", selectedRoom._id);
+    }, 1500);
+  };
+
+  // 🔹 Enter key handler
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -121,15 +155,16 @@ const EnhancedChatSection = ({
     }
   };
 
+  // 🔹 Infinite scroll
   const handleScroll = () => {
     const el = listRef.current;
     if (!el || isFetching || !hasMore) return;
-
-    if (el.scrollTop == 0) {
+    if (el.scrollTop === 0) {
       setPage((p) => p + 1);
     }
   };
 
+  // 🔹 No room selected
   if (!selectedRoom) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
@@ -146,9 +181,10 @@ const EnhancedChatSection = ({
     );
   }
 
+  // 🔹 Main chat UI
   return (
     <div className="flex-1 flex flex-col h-screen bg-background">
-      {/* Chat Header */}
+      {/* Header */}
       <div className="p-4 border-b border-border bg-chat-header flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="relative">
@@ -157,7 +193,7 @@ const EnhancedChatSection = ({
               alt={roomName}
               className="w-10 h-10 rounded-full object-cover"
             />
-            {selectedRoom.type == "direct" &&
+            {selectedRoom.type === "direct" &&
               memberData?.[0] &&
               status[memberData?.[0]?._id]?.isOnline && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-status-online border-2 border-background rounded-full"></div>
@@ -166,7 +202,7 @@ const EnhancedChatSection = ({
           <div>
             <h2 className="font-semibold text-foreground">{roomName}</h2>
             <p className="text-xs text-muted-foreground">
-              {selectedRoom.type == "direct" &&
+              {selectedRoom.type === "direct" &&
               memberData?.[0] &&
               status[memberData?.[0]?._id]?.isOnline
                 ? "Online"
@@ -212,27 +248,25 @@ const EnhancedChatSection = ({
         </div>
       </div>
 
-      {/* Messages Area */}
+      {/* Messages */}
       <div
+        ref={listRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
-        ref={listRef}
       >
-        {messages.map((msg, ind) => {
-          return (
-            <MessageBubble
-              key={msg._id}
-              message={msg}
-              isOwn={msg.senderId === currentUser?._id}
-            />
-          );
-        })}
+        {messages.map((msg) => (
+          <MessageBubble
+            key={msg._id}
+            message={msg}
+            isOwn={msg.senderId === currentUser?._id}
+          />
+        ))}
 
         {isTyping && <TypingIndicator avatar={roomAvatar} />}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Input */}
       <div className="p-4 border-t border-border bg-chat-header">
         <div className="flex items-end space-x-2">
           <div className="flex space-x-1">
@@ -243,7 +277,7 @@ const EnhancedChatSection = ({
           <div className="flex-1 bg-background border border-border rounded-lg">
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={handleTyping}
               onKeyPress={handleKeyPress}
               placeholder="Type a message..."
               rows={1}

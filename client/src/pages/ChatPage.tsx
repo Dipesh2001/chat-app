@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import ChatSection from "../components/ChatSection";
 import EnhancedChatSection from "../components/EnhancedChatSection";
 import EnhancedSidebar from "../components/EnhancedSidebar";
@@ -19,10 +19,15 @@ const ChatPage = () => {
   const [selectedRoom, setSelectedRoom] = useState<Room | undefined>();
   const { data: userData, isLoading, error } = useValidateUserQuery();
   const [fetchRoom, { data: selectedData }] = useLazyFetchRoomQuery();
+  const { roomId } = useParams();
 
   useEffect(() => {
     fetchRoom(selectedRoom?._id || "");
   }, [selectedRoom?._id]);
+
+  useEffect(() => {
+    fetchRoom(roomId || "");
+  }, [roomId]);
 
   return (
     // <div className="flex h-screen overflow-hidden">

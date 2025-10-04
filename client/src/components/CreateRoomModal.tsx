@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { X, Users, Hash, MessageCircle, Upload, Search } from "lucide-react";
 import { useLazyFetchUsersQuery } from "../features/userApi";
 import type { User } from "../app/types";
+import { useDebounce } from "use-debounce"; // npm install use-debounce
+import { useCreateRoomMutation } from "../features/roomApi";
+import { errorToast } from "../helper";
+import { socket } from "../utils/socket";
+import { useNavigate } from "react-router-dom";
 
 interface CreateRoomModalProps {
   onClose: () => void;
@@ -16,50 +21,73 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
   const [isPrivate, setIsPrivate] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch] = useDebounce(searchQuery, 400);
+  const navigate = useNavigate();
+
   const [fetchUsers, { isFetching }] = useLazyFetchUsersQuery();
+  const [createRoom] = useCreateRoomMutation();
 
-  const handleCreate = () => {
-    // Handle room creation logic here
-    console.log("Creating room:", {
-      roomType,
-      roomName,
-      description,
-      isPrivate,
-      selectedUsers,
-    });
+  const handleCreate = async () => {
+    try {
+      const payload = {
+        name: roomName || null,
+        isPrivate,
+        memberIds: selectedUsers, // backend expects this field
+        type: roomType || "group", // "direct" or "group"
+      };
 
-    onClose();
+      // 1️⃣ Create room
+      const { room } = await createRoom(payload).unwrap();
+      if (room) {
+        socket?.emit("room-created", { selectedUsers });
+      }
+      const msg = {
+        id: socket?.id,
+        message: "👋 Hi there! I’m using Chat App 🚀",
+        roomId: room._id,
+        timestamp: new Date().toISOString(),
+      };
+
+      socket?.emit("chat-message", msg);
+      onClose();
+
+      navigate(`/${room._id}`);
+    } catch (err: any) {
+      errorToast(err?.data?.message || "Failed to create room");
+    }
   };
-
-  // useEffect(() => {
-  //   fetchUsers({ page: 1, size: 6, search: searchQuery });
-  // }, [fetchUsers, searchQuery]);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const listRef = useRef<HTMLDivElement | null>(null);
   const [users, setUsers] = useState<User[]>([]);
 
-  // Fetch users when page/search changes
+  // 🔹 Fetch users when page or debouncedSearch changes
   useEffect(() => {
-    fetchUsers({ page, size: 6, search: searchQuery })
+    if (!fetchUsers) return;
+
+    fetchUsers({ page, size: 6, search: debouncedSearch })
       .unwrap()
       .then((res) => {
         setUsers((prev) => {
-          let updatedList = [...prev, ...res.users];
-          setHasMore(
-            updatedList?.length === res.pagination?.totalItems ? false : true
-          );
+          // If it's a new search (page = 1), replace the list
+          const updatedList = page === 1 ? res.users : [...prev, ...res.users];
+
+          setHasMore(updatedList.length < (res.pagination?.totalItems || 0));
+
           return updatedList;
         });
-      });
-  }, [fetchUsers, page, searchQuery]);
+      })
+      .catch((err) => console.error("Fetch users failed:", err));
+  }, [page, debouncedSearch, fetchUsers]);
 
-  // Reset page when search changes
+  // 🔹 Reset page & user list when search query changes
   useEffect(() => {
+    setUsers([]); // clear old results
     setPage(1);
-  }, [searchQuery]);
+  }, [debouncedSearch]);
 
+  // 🔹 Infinite scroll handler
   const handleScroll = () => {
     const el = listRef.current;
     if (!el || isFetching || !hasMore) return;
@@ -188,6 +216,7 @@ const CreateRoomModal = ({ onClose }: CreateRoomModalProps) => {
               </button>
             </div>
           )}
+
           {/* Search */}
           <div className="border-b border-border">
             <div className="relative">

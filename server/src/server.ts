@@ -27,7 +27,7 @@ app.get("/", (req: Request, res: Response) => {
 });
 // app.use(errorHandler);
 
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
     credentials: true, // 🔑 allow cookies
@@ -42,7 +42,7 @@ function isJsonString(str: string) {
   }
   return true;
 }
-const onlineUsers = new Map<string, string>();
+export const onlineUsers = new Map<string, string>();
 // Handling client connections
 io.on("connection", async (socket: Socket) => {
   console.log("connection connected");
@@ -53,7 +53,6 @@ io.on("connection", async (socket: Socket) => {
   const userName = userNameValue || userNameValue[0];
   const userAvatar = userAvatarValue || userAvatarValue[0];
 
-  console.log({ userAvatar });
   if (userId) {
     onlineUsers.set(Array.isArray(userId) ? userId[0] : userId, socket.id);
     await User.findByIdAndUpdate(userId, { isOnline: true }).exec();
@@ -69,6 +68,18 @@ io.on("connection", async (socket: Socket) => {
   socket.on("leave-room", (roomId: string) => {
     socket.leave(roomId);
     console.log(`User ${socket.id} left ${roomId}`);
+  });
+
+  socket.on("typing", (roomId) => {
+    socket.to(roomId).emit("user-typing");
+  });
+
+  socket.on("room-created", (roomId) => {
+    io.to(roomId).emit("room-created");
+  });
+
+  socket.on("stop-typing", (roomId) => {
+    socket.to(roomId).emit("user-stop-typing");
   });
 
   socket.on("chat-message", async (data) => {

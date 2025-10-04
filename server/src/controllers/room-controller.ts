@@ -5,6 +5,7 @@ import Room from "../models/room-model";
 import { User } from "../models/user-model";
 import { successResponse, errorResponse, toNumber } from "../helper";
 import { authRequest } from "../middleware/auth";
+import { io, onlineUsers } from "../server";
 
 // Create a room (direct or group)
 export const createRoom = async (req: Request, res: Response) => {
@@ -43,7 +44,17 @@ export const createRoom = async (req: Request, res: Response) => {
         members: [ownerId, otherUserId],
       });
 
-      return successResponse(res, "Direct chat created", room, 201);
+      room.members.forEach((memberId) => {
+        if (memberId !== ownerId) {
+          // skip the creator
+          const socketId = onlineUsers.get(String(memberId));
+          if (socketId) {
+            io.to(socketId).emit("room-created", room); // send new room info
+          }
+        }
+      });
+
+      return successResponse(res, "Direct chat created", { room }, 201);
     }
 
     // Group / channel
@@ -65,7 +76,7 @@ export const createRoom = async (req: Request, res: Response) => {
       members,
     });
 
-    return successResponse(res, "Room created successfully", room, 201);
+    return successResponse(res, "Room created successfully", { room }, 201);
   } catch (err: any) {
     return errorResponse(res, err.message || "Error creating room");
   }
@@ -85,7 +96,7 @@ export const getMyRooms = async (req: Request, res: Response) => {
     })
       .skip((page - 1) * size)
       .limit(size)
-      .sort({ updatedAt: 1 })
+      .sort({ updatedAt: -1 })
       .populate("owner", "name email profileImage")
       .populate("members", "name email profileImage");
 
