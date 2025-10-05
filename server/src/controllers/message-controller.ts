@@ -10,11 +10,21 @@ export const getMessages = async (req: Request, res: Response) => {
     const page = toNumber(req.query.page, 1);
     const size = toNumber(req.query.size, 20);
 
-    const messages = await Message.find({ roomId })
-      .sort({ updatedAt: -1 }) // newest first
-      .skip((page - 1) * size)
-      .limit(size)
-      .lean();
+    const messages = await Message.aggregate([
+      { $match: { roomId } },
+      { $sort: { updatedAt: -1 } }, // oldest first so inner order preserved
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" },
+          },
+          messages: { $push: "$$ROOT" },
+        },
+      },
+      { $sort: { _id: -1 } },
+      { $skip: (page - 1) * size },
+      { $limit: size },
+    ]);
 
     const total = await Message.countDocuments({ roomId });
 
@@ -48,6 +58,29 @@ export const editMessage = async (req: Request, res: Response) => {
     }
 
     message.content = content;
+    await message.save();
+
+    return successResponse(res, "Message updated successfully", message);
+  } catch (err: any) {
+    return errorResponse(res, err.message || "Error editing message");
+  }
+};
+
+export const updateMessageStatus = async (req: Request, res: Response) => {
+  try {
+    const { messageId } = req.params;
+    const userId = (req as authRequest).user?._id;
+    const { status } = req.body;
+
+    const message = await Message.findById(messageId);
+    if (!message) return errorResponse(res, "Message not found", {}, 404);
+
+    // // Only sender can edit
+    // if (message.senderId.toString() !== userId.toString()) {
+    //   return errorResponse(res, "Unauthorized to edit this message", {}, 403);
+    // }
+
+    message.status = status;
     await message.save();
 
     return successResponse(res, "Message updated successfully", message);

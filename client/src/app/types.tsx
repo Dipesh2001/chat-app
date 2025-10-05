@@ -37,8 +37,9 @@ export interface Message extends Partial<common> {
   senderAvatar?: string;
   content: string;
   timestamp?: Date;
-  status: "sending" | "sent" | "delivered" | "read";
-  type: "text" | "image" | "file" | "audio";
+  status: "sent" | "delivered" | "read";
+  type: "text" | "image" | "file" | "audio" | "system";
+  seenBy: string[];
 }
 
 export interface QueryResponse<T> {

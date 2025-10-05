@@ -6,7 +6,7 @@ interface UserStatus {
   lastSeen: string | null; // ISO string
 }
 
-interface UserStatusState {
+export interface UserStatusState {
   [userId: string]: UserStatus;
 }
 

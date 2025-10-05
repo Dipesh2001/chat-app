@@ -8,26 +8,33 @@ export interface IMessage extends Document {
   content: string;
   timestamp: Date;
   status: "sending" | "sent" | "delivered" | "read";
-  type: "text" | "image" | "file" | "audio";
+  type: "text" | "image" | "file" | "audio" | "system";
+  seenBy: string[];
 }
 
 const MessageSchema: Schema = new Schema<IMessage>(
   {
     roomId: { type: String, required: true },
-    senderId: { type: String, required: true },
+    senderId: { type: String, required: false },
     senderName: { type: String, required: true },
     senderAvatar: { type: String },
     content: { type: String, required: true }, // <-- keep content
     status: {
       type: String,
-      enum: ["sending", "sent", "delivered", "read"],
+      enum: ["sent", "delivered", "read"],
       default: "sent",
     },
     type: {
       type: String,
-      enum: ["text", "image", "file", "audio"],
+      enum: ["text", "image", "file", "audio", "system"],
       default: "text",
     },
+    seenBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true }
 );

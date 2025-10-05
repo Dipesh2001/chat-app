@@ -4,6 +4,7 @@ import {
   getMessages,
   editMessage,
   deleteMessage,
+  updateMessageStatus,
 } from "../controllers/message-controller";
 
 const router = express.Router();
@@ -13,6 +14,8 @@ router.get("/:roomId", auth("user"), getMessages);
 
 // Edit a message
 router.put("/:messageId", auth("user"), editMessage);
+
+router.put("/:messageId/status", auth("user"), updateMessageStatus);
 
 // Delete a message
 router.delete("/:messageId", auth("user"), deleteMessage);

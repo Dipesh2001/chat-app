@@ -10,16 +10,27 @@ import {
 } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypeIndicator";
+import DateSeparator from "./DateSeparator";
 import { socket } from "../utils/socket";
 import type { Message, Room, User } from "../app/types";
 import { useSelector } from "react-redux";
 import type { RootState } from "../app/store";
 import { formatLastSeen } from "../helper";
-import { useLazyFetchMessagesQuery } from "../features/messageApi";
+import {
+  useLazyFetchMessagesQuery,
+  useUpdateMessageStatusMutation,
+} from "../features/messageApi";
+import SystemMessage from "./SystemMessage";
+import type { UserStatusState } from "../features/userStatusSlice";
 
 interface EnhancedChatSectionProps {
   selectedRoom?: Room;
   currentUser?: User | null;
+}
+
+interface groupMessageType {
+  _id: string; // date string (YYYY-MM-DD)
+  messages: Message[];
 }
 
 const EnhancedChatSection = ({
@@ -27,7 +38,7 @@ const EnhancedChatSection = ({
   currentUser,
 }: EnhancedChatSectionProps) => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<groupMessageType[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const [page, setPage] = useState(1);
@@ -38,22 +49,25 @@ const EnhancedChatSection = ({
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [fetchMessages, { isFetching }] = useLazyFetchMessagesQuery();
+  const [updateMessageStatus] = useUpdateMessageStatusMutation();
+
   const status = useSelector((state: RootState) => state.userStatus);
 
-  let memberData = selectedRoom?.members.filter(
+  const memberData = selectedRoom?.members.filter(
     (el: any) => el?._id !== currentUser?._id
   );
-  let roomName =
+  const roomName =
     selectedRoom?.type === "direct" ? memberData?.[0]?.name : "Unknown";
-  let roomAvatar =
+  const roomAvatar =
     selectedRoom?.type === "direct" ? memberData?.[0]?.profileImage : "Unknown";
 
+  // 🔹 Reset messages when room changes
   useEffect(() => {
     setMessages([]);
     setPage(1);
   }, [selectedRoom]);
 
-  // 🔹 Fetch messages (reversed order + scroll preservation)
+  // 🔹 Fetch grouped messages with pagination
   useEffect(() => {
     if (!selectedRoom) return;
 
@@ -61,19 +75,46 @@ const EnhancedChatSection = ({
     const prevScrollHeight = chatContainer?.scrollHeight || 0;
     const prevScrollTop = chatContainer?.scrollTop || 0;
 
-    fetchMessages({ page, size: 8, roomId: selectedRoom._id })
+    fetchMessages({ page, size: 3, roomId: selectedRoom._id })
       .unwrap()
       .then((res) => {
-        const reversed = [...res.messages].reverse(); // API gives DESC → reverse for ASC
+        if (!res?.messages) return;
 
-        setMessages((prev: Message[]) => {
-          const updated = [...reversed, ...prev];
-          if (page === 1 && prev.length === 8) return prev;
-          setHasMore(updated.length < (res.pagination?.totalItems || 0));
-          return updated;
+        // Reverse inner messages for ascending order
+        const normalized = res.messages.map((group) => ({
+          ...group,
+          messages: [...group.messages].reverse(),
+        }));
+
+        // Merge new and old grouped messages
+        setMessages((prev) => {
+          const merged = [...normalized, ...prev].reduce(
+            (acc: groupMessageType[], curr) => {
+              const existing = acc.find((g) => g._id === curr._id);
+              if (existing) {
+                const existingIds = new Set(
+                  existing.messages.map((m) => m._id)
+                );
+                const newMsgs = curr.messages.filter(
+                  (m) => !existingIds.has(m._id)
+                );
+                existing.messages = [...newMsgs, ...existing.messages];
+              } else {
+                acc.push(curr);
+              }
+              return acc;
+            },
+            []
+          );
+          return merged.sort((a, b) => a._id.localeCompare(b._id));
         });
 
-        // maintain scroll position
+        setHasMore(
+          (res.pagination?.page || 1) * (res.pagination?.size || 0) <
+            (res.pagination?.totalItems || 0)
+        );
+
+        // Maintain scroll position
         requestAnimationFrame(() => {
           if (!chatContainer) return;
           const newScrollHeight = chatContainer.scrollHeight;
@@ -83,44 +124,129 @@ const EnhancedChatSection = ({
       });
   }, [selectedRoom, page]);
 
-  // 🔹 Socket setup for messages + typing events
+  // 🔹 Socket setup for typing + message events
   useEffect(() => {
     if (!selectedRoom || !socket) return;
 
     socket.emit("join-room", selectedRoom._id);
 
+    // ✅ Handle new incoming message (real-time)
     const handleMessage = (msg: Message) => {
-      setMessages((prev) => [...prev, msg]);
+      // Determine date group (YYYY-MM-DD)
+      const dateKey = msg?.updatedAt
+        ? new Date().toISOString().split("T")[0]
+        : "Today";
+
+      setMessages((prev) => {
+        const existingGroup = prev.find((g) => g._id === dateKey);
+        if (existingGroup) {
+          // Avoid duplicates
+          if (existingGroup.messages.some((m) => m._id === msg._id))
+            return prev;
+
+          const updatedGroups = prev.map((group) =>
+            group._id === dateKey
+              ? { ...group, messages: [...group.messages, msg] }
+              : group
+          );
+          return updatedGroups;
+        } else {
+          // Add new date group
+          return [...prev, { _id: dateKey, messages: [msg] }].sort((a, b) =>
+            a._id.localeCompare(b._id)
+          );
+        }
+      });
+
+      // Scroll to bottom if new message is from current room
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
     };
 
-    const handleTyping = () => {
-      setIsTyping(true);
+    const handleDelivered = (msg: Message) => {
+      // Update UI immediately
+      setMessages((prev) =>
+        prev.map((group) => ({
+          ...group,
+          messages: group.messages.map((m) =>
+            m._id === msg._id ? { ...m, status: "delivered" } : m
+          ),
+        }))
+      );
     };
 
-    const handleStopTyping = () => {
-      setIsTyping(false);
+    const handleMessageSeen = (updatedMessage: Message) => {
+      setMessages((prev) =>
+        prev.map((group) => ({
+          ...group,
+          messages: group.messages.map((msg) =>
+            msg._id === updatedMessage._id ? updatedMessage : msg
+          ),
+        }))
+      );
     };
+
+    const handleTyping = () => setIsTyping(true);
+    const handleStopTyping = () => setIsTyping(false);
 
     socket.on("chat-message", handleMessage);
     socket.on("user-typing", handleTyping);
     socket.on("user-stop-typing", handleStopTyping);
+
+    socket.on("message-delivered", handleDelivered);
+    socket?.on("message-seen", handleMessageSeen);
 
     return () => {
       socket?.emit("leave-room", selectedRoom._id);
       socket?.off("chat-message", handleMessage);
       socket?.off("user-typing", handleTyping);
       socket?.off("user-stop-typing", handleStopTyping);
+      socket?.off("message-delivered", handleDelivered);
+      socket?.off("message-seen", handleMessageSeen);
     };
   }, [selectedRoom]);
+
+  const markMessageAsSeen = (messageId: string) => {
+    if (!selectedRoom) return;
+    socket?.emit("message-read", { messageId, userId: currentUser?._id });
+  };
+
+  useEffect(() => {
+    if (!selectedRoom || !socket || !currentUser) return;
+    messages.forEach((group) => {
+      group.messages.forEach((msg) => {
+        if (msg.senderId !== currentUser._id && msg.status === "sent") {
+          socket?.emit("message-received", {
+            messageId: msg._id,
+            userId: currentUser._id,
+          });
+          markMessageAsSeen(String(msg._id));
+        }
+        // else if (
+        //   msg.senderId !== currentUser._id &&
+        //   msg.status === "delivered"
+        // ) {
+        //   markMessageAsSeen(String(msg._id));
+        // }
+      });
+    });
+  }, [messages, selectedRoom]);
 
   // 🔹 Send message
   const sendMessage = () => {
     if (message.trim() && selectedRoom) {
       const msg = {
-        id: socket?.id,
-        message: message.trim(),
+        _id: `${Date.now()}`, // temporary id for UI
+        content: message.trim(),
         roomId: selectedRoom._id,
-        timestamp: new Date().toISOString(),
+        senderId: currentUser?._id,
+        senderName: currentUser?.name,
+        senderAvatar: currentUser?.profileImage,
+        status: "sent",
+        type: "text",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       socket?.emit("chat-message", msg);
       socket?.emit("stop-typing", selectedRoom._id);
@@ -128,26 +254,19 @@ const EnhancedChatSection = ({
     }
   };
 
-  // 🔹 Typing events handler
+  // 🔹 Typing events
   const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
-
     if (!selectedRoom || !socket) return;
-
     socket.emit("typing", selectedRoom._id);
 
-    // Reset previous timer
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    // Stop typing after 1.5s of inactivity
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       socket?.emit("stop-typing", selectedRoom._id);
     }, 1500);
   };
 
-  // 🔹 Enter key handler
+  // 🔹 Enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -252,14 +371,27 @@ const EnhancedChatSection = ({
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-4 space-y-6"
       >
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg._id}
-            message={msg}
-            isOwn={msg.senderId === currentUser?._id}
-          />
+        {messages.map((group) => (
+          <div key={group._id}>
+            <DateSeparator date={new Date(group._id)} />
+            {group.messages.map((msg) =>
+              msg?.type === "system" ? (
+                <SystemMessage
+                  key={msg._id}
+                  content={msg.content}
+                  timestamp={new Date(String(msg.updatedAt))}
+                />
+              ) : (
+                <MessageBubble
+                  key={msg._id}
+                  message={msg}
+                  isOwn={msg.senderId === currentUser?._id}
+                />
+              )
+            )}
+          </div>
         ))}
 
         {isTyping && <TypingIndicator avatar={roomAvatar} />}

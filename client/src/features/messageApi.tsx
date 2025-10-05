@@ -2,7 +2,10 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { Message, QueryResponse, pagination } from "../app/types";
 import { errorToast, successToast } from "../helper";
 
-type messageListType = { messages: Message[]; pagination: pagination };
+type messageListType = {
+  messages: { _id: string; messages: Message[] }[];
+  pagination: pagination;
+};
 interface messagesResponse extends QueryResponse<messageListType> {}
 interface singleMessageResponse extends QueryResponse<Message> {}
 
@@ -79,6 +82,19 @@ export const messageApi = createApi({
         }
       },
     }),
+    updateMessageStatus: builder.mutation<
+      Message,
+      { messageId: string; status: "delivered" | "read" }
+    >({
+      query: ({ messageId, status }) => ({
+        url: `/${messageId}/status`,
+        method: "put",
+        body: { status },
+      }),
+      invalidatesTags: (result, error, { messageId }) => [
+        { type: "Message", id: messageId },
+      ],
+    }),
   }),
 });
 
@@ -86,4 +102,5 @@ export const {
   useLazyFetchMessagesQuery,
   useEditMessageMutation,
   useDeleteMessageMutation,
+  useUpdateMessageStatusMutation,
 } = messageApi;

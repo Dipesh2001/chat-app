@@ -10,10 +10,6 @@ interface MessageBubbleProps {
 const MessageBubble = ({ message, isOwn }: MessageBubbleProps) => {
   const getStatusIcon = () => {
     switch (message.status) {
-      case "sending":
-        return (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        );
       case "sent":
         return <Check className="w-4 h-4" />;
       case "delivered":

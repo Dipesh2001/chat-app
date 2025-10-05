@@ -6,6 +6,7 @@ import { User } from "../models/user-model";
 import { successResponse, errorResponse, toNumber } from "../helper";
 import { authRequest } from "../middleware/auth";
 import { io, onlineUsers } from "../server";
+import { Message } from "../models/message-model";
 
 // Create a room (direct or group)
 export const createRoom = async (req: Request, res: Response) => {
@@ -43,6 +44,16 @@ export const createRoom = async (req: Request, res: Response) => {
         owner: ownerId,
         members: [ownerId, otherUserId],
       });
+
+      if (room) {
+        await Message.create({
+          roomId: room._id,
+          senderId: null,
+          senderName: "System",
+          type: "system",
+          content: `Chat started by ${(req as authRequest).user?.name}`,
+        });
+      }
 
       room.members.forEach((memberId) => {
         if (memberId !== ownerId) {

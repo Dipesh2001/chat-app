@@ -85,14 +85,13 @@ io.on("connection", async (socket: Socket) => {
   socket.on("chat-message", async (data) => {
     try {
       // destructure from client payload
-      const { message, roomId, timestamp } = data;
-
+      const { content, roomId, timestamp } = data;
       // Map client fields -> DB fields
       const messageData = await Message.create({
         roomId,
         senderId: userId, // from socket handshake
         senderName: userName || "Unknown", // or fetch from DB
-        content: message, // rename "message" -> "content"
+        content,
         senderAvatar: userAvatar,
         type: "text",
         status: "sent",
@@ -101,11 +100,45 @@ io.on("connection", async (socket: Socket) => {
 
       // Emit the saved message to room
       io.to(roomId).emit("chat-message", messageData);
-      // io.emit("chat-message", data);
     } catch (err) {
       console.error("Error saving message:", err);
       // socket.emit("error", "Message not saved");
     }
+  });
+
+  socket.on("message-received", async ({ messageId, userId }) => {
+    const message = await Message.findById(messageId);
+    if (!message) return;
+
+    if (message.status === "sent") {
+      message.status = "delivered";
+      await message.save();
+    }
+
+    io.to(onlineUsers.get(message.senderId) || "").emit(
+      "message-delivered",
+      message
+    );
+  });
+
+  socket.on("message-read", async ({ messageId, userId }) => {
+    const message = await Message.findById(messageId);
+    if (!message) return;
+
+    if (!message.seenBy.includes(userId)) {
+      message.seenBy.push(userId);
+
+      //comment for now
+      // if (message.roomType === "direct")
+      message.status = "read";
+
+      await message.save();
+    }
+
+    io.to(onlineUsers.get(message.senderId) || "").emit(
+      "message-seen",
+      message
+    );
   });
 
   // Disconnect event
